@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calculadora de Probabilidades — Placares Exatos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#5b3df5; --bg2:#7e46ff;
+    --card:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e5e7eb;
+    --header:#22a455; --header-ink:#ffffff;
+    --primary:#22a455; --primary-hover:#1c8b48;
+    --chip:#eef6ff; --input:#ffffff; --input-b:#cbd5e1;
+
+    /* Degradê de probabilidade */
+    --prob-low-bg:#FDE8E8;  /* menor probabilidade */
+    --prob-low-fg:#B5261B;
+    --prob-high-bg:#CFF9E9; /* maior probabilidade - fundo mais verde */
+    --prob-high-fg:#0E7F62; /* maior probabilidade - texto mais verde */
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; padding:28px;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+    background:linear-gradient(145deg,var(--bg1),var(--bg2)) fixed;
+    color:var(--ink);
+  }
+  .shell{width:min(1060px,96vw); margin:0 auto}
+  .card{background:var(--card); border-radius:22px; overflow:hidden;
+        box-shadow:0 20px 60px rgba(2,8,23,.35); border:1px solid #00000010;}
+  .card__header{background:var(--header); color:var(--header-ink); padding:22px 26px; text-align:center;}
+  .card__header h1{margin:0; font-size:28px; font-weight:800}
+  .card__header p{margin:6px 0 0; font-size:14px; opacity:.9}
+
+  .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;
+            padding:16px 18px; border-bottom:1px solid var(--line); background:#fafafa;}
+  .odds-input-group{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .odds-input-group label{font-weight:600}
+  .odds-input-group input{flex:1 1 360px; min-width:260px; padding:10px 12px; border-radius:12px;
+                          border:1px solid var(--input-b); background:var(--input); outline:none;}
+  .btn{padding:10px 14px; border-radius:999px; cursor:pointer; font-weight:700; border:1px solid var(--primary);
+       color:#fff; background:var(--primary); transition:.15s ease;}
+  .btn:hover{background:var(--primary-hover); border-color:var(--primary-hover)}
+  .btn.ghost{background:#fff; color:var(--primary); border-color:var(--primary)}
+  .btn.ghost:hover{background:#f0fdf4}
+
+  .wrap{overflow:auto; background:#fff}
+  table{border-collapse:separate; border-spacing:0; width:100%; min-width:820px}
+  thead th{position:sticky; top:0; background:#ffffff; z-index:1; padding:12px 14px; border-bottom:1px solid var(--line);
+           text-align:left; font-weight:800;}
+  tbody td{padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle}
+  th.back, td.back{background:var(--chip)}
+  .right{text-align:right}
+
+  input.odds{width:100%; max-width:120px; padding:10px 10px; border-radius:10px; text-align:right; font-weight:700;
+             border:1px solid var(--input-b); background:#fff; color:var(--ink);}
+  input.odds::placeholder{color:#94a3b8}
+
+  .prob-head-actions{display:inline-flex; gap:6px; margin-left:8px; vertical-align:middle}
+  .btn-mini{padding:6px 9px; border-radius:10px; cursor:pointer; font:700 12px/1 Inter, sans-serif;
+            background:#fff; color:var(--primary); border:1px solid var(--primary);}
+  .btn-mini:hover{background:#f0fdf4}
+
+  /* Probabilidade com preenchimento visível e canto arredondado */
+  td.prob{font-weight:700; border-radius:10px; padding:8px 10px}
+
+  .summary{padding:18px; background:#f8fafc; border-top:1px solid var(--line)}
+  .summary .box{background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px}
+  .summary h3{margin:0 0 6px; font-size:16px}
+  .summary p{margin:0; color:var(--muted); line-height:1.6}
+
+  .footer{background:var(--header); color:#ffffff; text-align:center; font-size:12px; padding:10px 14px; border-top:1px solid #00000010;}
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="card">
+      <div class="card__header">
+        <h1>Calculadora de Probabilidades</h1>
+        <p>Placares Exatos</p>
+      </div>
+
+      <div class="controls">
+        <div class="odds-input-group">
+          <label for="bulkOddsBack">Odds Back (separadas por vírgula ou espaço):</label>
+          <input type="text" id="bulkOddsBack" placeholder="Ex.: 14.5, 10.5, 14, 26, 13.5...">
+        </div>
+        <div class="actions">
+          <button class="btn" id="applyBulkOdds">Aplicar Odds</button>
+          <button class="btn ghost" id="clearOdds">Zerar Odds</button>
+          <button class="btn" id="exportCSV">Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <table id="cs">
+          <thead>
+            <tr>
+              <th style="width:320px">Tipo de Aposta / Placares</th>
+              <th class="back" style="width:160px">Odd Back</th>
+              <th class="right" style="width:200px">
+                Probabilidade %
+                <span class="prob-head-actions">
+                  <button class="btn-mini" id="sortDesc" title="Maior → menor">↑</button>
+                  <button class="btn-mini" id="sortOrig" title="Ordem original">↺</button>
+                  <button class="btn-mini" id="sortAsc"  title="Menor → maior">↓</button>
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- LINHAS DOS PLACARES (19 resultados) -->
+            <tr data-index="0"><td>0 - 0</td><td class="back"><input class="odds" data-type="back" placeholder="ex.: 14.5"></td><td class="right prob">—</td></tr>
+            <tr data-index="1"><td>0 - 1</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="2"><td>0 - 2</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="3"><td>0 - 3</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+
+            <tr data-index="4"><td>1 - 0</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="5"><td>1 - 1</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="6"><td>1 - 2</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="7"><td>1 - 3</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+
+            <tr data-index="8"><td>2 - 0</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="9"><td>2 - 1</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="10"><td>2 - 2</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="11"><td>2 - 3</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+
+            <tr data-index="12"><td>3 - 0</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="13"><td>3 - 1</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="14"><td>3 - 2</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="15"><td>3 - 3</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+
+            <tr data-index="16"><td>Qualquer outra vitória em casa</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="17"><td>Qualquer outra vitória de visitante</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+            <tr data-index="18"><td>Qualquer outro empate</td><td class="back"><input class="odds" data-type="back"></td><td class="right prob">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="summary">
+        <div class="box">
+          <h3>Resumo da Análise</h3>
+          <p>Informe as Odds Back para cada placar ou use "Aplicar Odds" em massa. A probabilidade é calculada automaticamente (100 ÷ odd). Você pode ordenar, limpar e exportar o CSV.</p>
+        </div>
+      </div>
+
+      <div class="footer">
+        Criado por - Ricardo Macedo - (61) 99285-1747
+      </div>
+    </div>
+  </div>
+
+<script>
+  const fmtPct = n => n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+  const fmtNum = n => parseFloat(n.toFixed(1)).toString();
+  const parseVal = v => { const s=String(v??'').trim().replace(',', '.'); const x=parseFloat(s); return (isFinite(x)&&x>0)?x:NaN; };
+
+  function calcProbFromRow(tr){
+    const v = parseVal(tr.querySelector('input[data-type="back"]').value);
+    if (isNaN(v)) return null; 
+    return 100 / v;
+  }
+
+  /* Utilitários para interpolar cores HEX ←→ RGB */
+  function hexToRgb(hex){
+    const h = hex.replace('#','');
+    const b = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+    return { r: parseInt(b.slice(0,2),16), g: parseInt(b.slice(2,4),16), b: parseInt(b.slice(4,6),16) };
+  }
+  function rgbToHex({r,g,b}){
+    const toHex = v => v.toString(16).padStart(2,'0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+  }
+  function mixHex(aHex,bHex,t){
+    const a=hexToRgb(aHex), b=hexToRgb(bHex);
+    const lerp=(x,y,t)=>Math.round(x+(y-x)*t);
+    return rgbToHex({r:lerp(a.r,b.r,t), g:lerp(a.g,b.g,t), b:lerp(a.b,b.b,t)});
+  }
+
+  function paintGradient(){
+    const cells=[...document.querySelectorAll('#cs tbody td.prob')];
+    const vals=cells.map(td=>parseFloat(td.textContent.replace('%','').replace(',','.'))).filter(v=>!isNaN(v));
+    if(!vals.length){cells.forEach(td=>{td.style.background=''; td.style.color='';}); return;}
+
+    const min=Math.min(...vals), max=Math.max(...vals), span=(max-min)||1;
+    const lowBG=getComputedStyle(document.documentElement).getPropertyValue('--prob-low-bg').trim() || '#FDE8E8';
+    const lowFG=getComputedStyle(document.documentElement).getPropertyValue('--prob-low-fg').trim() || '#B5261B';
+    const highBG=getComputedStyle(document.documentElement).getPropertyValue('--prob-high-bg').trim() || '#CFF9E9';
+    const highFG=getComputedStyle(document.documentElement).getPropertyValue('--prob-high-fg').trim() || '#0E7F62';
+
+    cells.forEach(td=>{
+      const v=parseFloat(td.textContent.replace('%','').replace(',','.'));
+      if(isNaN(v)){ td.style.background=''; td.style.color=''; return; }
+      let t=(v-min)/span;       // 0 → menor prob | 1 → maior prob
+      t = Math.pow(t, 0.65);    // easing p/ puxar mais o verde no topo
+      td.style.background = mixHex(lowBG, highBG, t);
+      td.style.color      = mixHex(lowFG, highFG, t);
+    });
+  }
+
+  function recalcAll(){
+    document.querySelectorAll('#cs tbody tr').forEach((tr,i)=>{
+      if(!tr.dataset.index) tr.dataset.index=i;
+      const p = calcProbFromRow(tr);
+      tr.querySelector('.prob').textContent = (p===null)?'—':fmtPct(p);
+      tr.dataset.prob = (p===null)?'':p.toFixed(6);
+    });
+    paintGradient();
+  }
+
+  function sortByProb(dir){
+    const tbody=document.querySelector('#cs tbody');
+    const rows=[...tbody.querySelectorAll('tr')];
+    rows.sort((a,b)=>{
+      const pa=a.dataset.prob===''?-Infinity:parseFloat(a.dataset.prob);
+      const pb=b.dataset.prob===''?-Infinity:parseFloat(b.dataset.prob);
+      return dir==='desc'?(pb-pa):(pa-pb);
+    });
+    rows.forEach(r=>tbody.appendChild(r));
+    paintGradient();
+  }
+  function sortOriginal(){
+    const tbody=document.querySelector('#cs tbody');
+    const rows=[...tbody.querySelectorAll('tr')];
+    rows.sort((a,b)=>parseInt(a.dataset.index)-parseInt(b.dataset.index));
+    rows.forEach(r=>tbody.appendChild(r));
+    paintGradient();
+  }
+
+  function applyBulkOdds() {
+    const oddsArray = document.getElementById('bulkOddsBack').value
+      .split(/[, ]+/).map(parseVal).filter(v => !isNaN(v));
+    const backOddsInputs = document.querySelectorAll('#cs input[data-type="back"]');
+    backOddsInputs.forEach((input, index) => input.value = index < oddsArray.length ? fmtNum(oddsArray[index]) : '');
+    recalcAll();
+  }
+  function clearAllBackOdds() {
+    document.querySelectorAll('#cs input[data-type="back"]').forEach(input => input.value = '');
+    const bulk = document.getElementById('bulkOddsBack'); if (bulk) bulk.value = '';
+    recalcAll();
+  }
+  function exportCSV(){
+    const out=[];
+    out.push(['Placares','Odd Back','Probabilidade %'].join(','));
+    document.querySelectorAll('#cs tbody tr').forEach(tr=>{
+      const placar=tr.children[0].textContent.trim();
+      const back=tr.querySelector('input[data-type="back"]').value.trim();
+      const prob=tr.querySelector('.prob').textContent.trim();
+      out.push([placar,back,prob].map(v=>{
+        const s=v.replaceAll('"','"'); return /,|\n|"/.test(s)?`"${s}"`:s;
+      }).join(','));
+    });
+    const blob=new Blob([out.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='correct-score.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  // Listeners
+  document.addEventListener('input', e=>{
+    if(e.target && e.target.matches('#cs input.odds')) recalcAll();
+  });
+  document.getElementById('sortDesc').addEventListener('click',()=>{recalcAll();sortByProb('desc');});
+  document.getElementById('sortAsc').addEventListener('click', ()=>{recalcAll();sortByProb('asc');});
+  document.getElementById('sortOrig').addEventListener('click',()=>{recalcAll();sortOriginal();});
+  document.getElementById('applyBulkOdds').addEventListener('click', applyBulkOdds);
+  document.getElementById('clearOdds').addEventListener('click', clearAllBackOdds);
+  document.getElementById('exportCSV').addEventListener('click',exportCSV);
+
+  // Estado inicial
+  document.addEventListener('DOMContentLoaded', () => {
+    recalcAll();
+  });
+</script>
+</body>
+</html>
